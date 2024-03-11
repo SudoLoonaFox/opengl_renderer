@@ -11,31 +11,64 @@ char infoLog[512];
 const char* vertexFormatIn = "v %f %f %f\n";
 const char* faceFormatIn = "f %i %i %i\n";
 
+typedef struct{
+	int id;
+	GLFWwindow* window;
+}Context;
+
 typedef struct {
-	float* vertices;
-	unsigned int* indices;
-	unsigned int vertices_len;
-	unsigned int indices_len;
+	int id;
+	char name[20];
+	GLuint vertexArrayObject;
+	GLuint elementBufferObject;
+	unsigned int verticesLen;
+	char* modelPath;
+	int anim;
+	int animFrame;
+	int x;
+	int y;
+	int z;
+	//TODO add something here for rotations
+	// TODO add function pointer for ai
 }Model;
+
+typedef struct {
+	int id;
+	Model** models;
+	int modelsLen;
+	int modelsMaxLen;
+	GLuint shaderProgram;
+}Scene;
+
+void sceneInit(Scene* scene, int id, int modelsMaxLen, GLuint shaderProgram){
+	scene->models = malloc(sizeof(Model)*modelsMaxLen);
+	for(int i = 0; i < modelsMaxLen; i++){
+		scene->models[i] = malloc(sizeof(Model));
+	}
+	scene->id = id;
+	scene->modelsLen = 0;
+	scene->modelsMaxLen = modelsMaxLen;
+}
+
+// TODO add more data as needed
+void addModelToScene(Scene* scene, GLuint vertexArrayObject, GLuint elementBufferObject, int verticesLen){
+	if(scene->modelsLen >= scene->modelsMaxLen){
+		printf("This scene has too many models\n");
+		return;
+	}
+	scene->models[scene->modelsLen++] = malloc(sizeof(Model));
+	scene->models[scene->modelsLen-1]->vertexArrayObject = vertexArrayObject;
+	scene->models[scene->modelsLen-1]->elementBufferObject = elementBufferObject;
+	scene->models[scene->modelsLen-1]->verticesLen = verticesLen;
+	return;
+}
+
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
 }
 
-const char* vertexShaderSource = "#version 330 core\n"
-    "layout (location = 0) in vec3 aPos;\n"
-    "void main()\n"
-    "{\n"
-    "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
-    "}\0";
-
-const char* fragmentShaderSource = "#version 330 core\n"
-	"out vec4 FragColor;\n"
-	"void main()\n"
-	"{\n"
-	"    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
-	"}\0";
 /*
 // Triangle
 float vertices[] = {
@@ -116,9 +149,19 @@ int compileShaderFromFile(char* path, GLuint shader){
 	return 0;
 }
 
-int main(void){
-    GLFWwindow* window;
+void renderScene(Context* context, Scene* scene){
+	glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);	
+	//	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glUseProgram(scene->shaderProgram);
+	for(int i = 0; i < scene->modelsLen; i++){
+		glBindVertexArray(scene->models[i]->vertexArrayObject);
+		glDrawElements(GL_TRIANGLES, scene->models[i]->verticesLen, GL_UNSIGNED_INT, 0);
+		glBindVertexArray(0);
+	}
+}
 
+int windowInit(Context* context){
     /* Initialize the library */
     if (!glfwInit())
         return -1;
@@ -127,18 +170,25 @@ int main(void){
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(640, 480, "Renderer", NULL, NULL);
-    if (!window){
+    context->window = glfwCreateWindow(640, 480, "Renderer", NULL, NULL);
+    if (!context->window){
         glfwTerminate();
         return -1;
     }
 
     /* Make the window's context current */
-    glfwMakeContextCurrent(window);
+    glfwMakeContextCurrent(context->window);
 	glewInit();
+	return 0;
+}
+int main(void){
 
 	// set callback for resizing
 	//glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+	Context* context = malloc(sizeof(context));
+	context->id = 0;
+
+	windowInit(context);
 
 	// create vertex shader
 	unsigned int vertexShader;
@@ -170,6 +220,9 @@ int main(void){
 	glDeleteShader(fragmentShader);
 	glUseProgram(shaderProgram);
 
+	Scene* scene = malloc(sizeof(scene));
+	sceneInit(scene, 0, 10, shaderProgram);
+
 	// create vertex buffer object
 	unsigned int vertexBuffer;
 	glGenBuffers(1, &vertexBuffer);
@@ -193,6 +246,9 @@ int main(void){
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
 
+
+	addModelToScene(scene, VAO, EBO, sizeof(vertices)/sizeof(float)/3);
+
 	// 1. bind Vertex Array Object
 	// 2. copy our vertices array in a vertex buffer for OpenGL to use
 	// 3. copy our index array in a element buffer for OpenGL to use
@@ -204,17 +260,11 @@ int main(void){
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	// unset wireframe
 	// glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    while (!glfwWindowShouldClose(window)){
+    while (!glfwWindowShouldClose(context->window)){
         /* Render here */
-		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);	
-	//	glDrawArrays(GL_TRIANGLES, 0, 3);
-		glUseProgram(shaderProgram);
-		glBindVertexArray(VAO);
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-		glBindVertexArray(0);
+		renderScene(context, scene);
         /* Swap front and back buffers */
-        glfwSwapBuffers(window);
+        glfwSwapBuffers(context->window);
 
         /* Poll for and process events */
         glfwPollEvents();
