@@ -3,9 +3,25 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+#define MAX_SHADER_BUFFER_SIZE 2000
+// TODO add error logging function
+int  success;
+char infoLog[512];
+
 const char* vertexFormatIn = "v %f %f %f\n";
 const char* faceFormatIn = "f %i %i %i\n";
 
+typedef struct {
+	float* vertices;
+	unsigned int* indices;
+	unsigned int vertices_len;
+	unsigned int indices_len;
+}Model;
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    glViewport(0, 0, width, height);
+}
 
 const char* vertexShaderSource = "#version 330 core\n"
     "layout (location = 0) in vec3 aPos;\n"
@@ -20,7 +36,8 @@ const char* fragmentShaderSource = "#version 330 core\n"
 	"{\n"
 	"    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
 	"}\0";
-
+/*
+// Triangle
 float vertices[] = {
      0.5f,  0.5f, 0.0f,  // top right
      0.5f, -0.5f, 0.0f,  // bottom right
@@ -31,6 +48,73 @@ unsigned int indices[] = {  // note that we start from 0!
     0, 1, 3,   // first triangle
     1, 2, 3    // second triangle
 };
+*/
+// Cube
+float vertices[] = {
+    // Front face
+     0.5,  0.5,  0.5,
+    -0.5,  0.5,  0.5,
+    -0.5, -0.5,  0.5,
+     0.5, -0.5,  0.5,
+
+    // Back face
+     0.5,  0.5, -0.5,
+    -0.5,  0.5, -0.5,
+    -0.5, -0.5, -0.5,
+     0.5, -0.5, -0.5,
+};
+
+unsigned int indices[] = {
+      // Front
+      0, 1, 2,
+      2, 3, 0,
+
+      // Right
+      0, 3, 7,
+      7, 4, 0,
+
+      // Bottom
+      2, 6, 7,
+      7, 3, 2,
+
+      // Left
+      1, 5, 6,
+      6, 2, 1,
+
+      // Back
+      4, 7, 6,
+      6, 5, 4,
+
+      // Top
+      5, 1, 0,
+      0, 4, 5,
+};
+
+int compileShaderFromFile(char* path, GLuint shader){
+	char buffer[MAX_SHADER_BUFFER_SIZE]; // Will this work?
+	FILE* file = fopen(path, "r");
+	if(file==NULL){
+		return -1;
+	}
+	size_t i = 0;
+	while(i<MAX_SHADER_BUFFER_SIZE){
+		char c = fgetc(file);
+		if(c == EOF)break;
+		buffer[i++] = c;
+	}
+	buffer[i] = '\0';
+
+	const char* buf = buffer;
+	glShaderSource(shader, 1, &buf, NULL);
+	glCompileShader(shader);
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+
+	if(!success){
+		glGetShaderInfoLog(shader, 512, NULL, infoLog);
+		printf("%s", infoLog);
+	}
+	return 0;
+}
 
 int main(void){
     GLFWwindow* window;
@@ -53,38 +137,21 @@ int main(void){
     glfwMakeContextCurrent(window);
 	glewInit();
 
-	// TODO add resizing code
-
-	int  success;
-	char infoLog[512];
+	// set callback for resizing
+	//glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
 	// create vertex shader
 	unsigned int vertexShader;
+	
 	vertexShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-	glCompileShader(vertexShader);
-
-	glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-
-	if(!success){
-		glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-		printf("%s", infoLog);
-	}
-
+	compileShaderFromFile("src/vertexShader.glsl", vertexShader);
 	
 	// create fragment shader
 	unsigned int fragmentShader;
 	fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-	glCompileShader(fragmentShader);
+	compileShaderFromFile("src/fragmentShader.glsl", fragmentShader);
 
-	glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-
-	if(!success){
-		glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-		printf("%s", infoLog);
-	}
-
+	//TODO Create variadic function to make shader program
 	// create shader program
 	unsigned int shaderProgram;
 	shaderProgram = glCreateProgram();
